@@ -37,9 +37,9 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  // Probably don't need this: int _counter = 0;
   Database? database;
   Map<String, dynamic>? weatherData;
+  int dbSize = 0;
 
   // SQLite stuff happens here I guess
   Future<void> initializeDB() async {
@@ -53,6 +53,15 @@ class _MyHomePageState extends State<MyHomePage> {
       },
       version: 1,
     );
+  }
+
+  Future<int> getWeatherTableSize(Database? db) async {
+    if (db != null) {
+      var result = await db.rawQuery('SELECT COUNT(*) FROM weather');
+      int count = Sqflite.firstIntValue(result) ?? 0;
+      return count;
+    }
+    return 0;
   }
 
   Future<void> fetchWeatherData() async {
@@ -72,6 +81,19 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       print("Failed to fetch weather data");
     }
+
+    int count = await getWeatherTableSize(database);
+    setState(() {
+      dbSize = count;
+    });
+    
+    if (count > 504) {
+      var oldestRow = await database!.query('weather', orderBy: 'id ASC', limit: 1);
+      if (oldestRow.isNotEmpty) {
+        int oldestId = oldestRow.first['id'] as int;
+        await database!.delete('weather', where: 'id = ?', whereArgs: [oldestId]);
+      }
+    }
   }
 
   // Save to local storage
@@ -83,6 +105,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<List<Map<String, dynamic>>> getWeatherData(Database db) async {
+    fetchWeatherData();
     return await db.query('weather');
   }
 
@@ -123,8 +146,10 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     Text(
                           'Temperature: ${weatherData!['properties']['temperature']['value']}°C'),
-                      Text(
+                    Text(
                           'Wind Speed: ${weatherData!['properties']['windSpeed']['value']} km/h'),
+                    Text(
+                          'Database size: $dbSize'),
                   ],
                 ),
             const SizedBox(height: 20),
@@ -135,6 +160,19 @@ class _MyHomePageState extends State<MyHomePage> {
                 print(data); // Bug fixing
               },
               child: const Text('Show Saved Data'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                if (database != null) {
+                  await database!.delete('weather');
+                  print("Weather data cleared");
+                  setState(() {
+                    weatherData = null;
+                  });
+                }
+              },
+              child: const Text('Clear Data'),
             ),
           ],
         ),
