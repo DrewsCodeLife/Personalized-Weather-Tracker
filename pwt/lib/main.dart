@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:units_converter/units_converter.dart';
 
 // https://api.weather.gov/stations/KCIC/observations/latest
 
@@ -48,7 +49,7 @@ class _MyHomePageState extends State<MyHomePage> {
       join(path, 'weather.db'),
       onCreate: (db, version) async {
         await db.execute (
-          "CREATE TABLE weather(id INTEGER PRIMARY KEY AUTOINCREMENT, temperature TEXT, windSpeed TEXT)"
+          "CREATE TABLE weather(id INTEGER PRIMARY KEY AUTOINCREMENT, temperature REAL, windSpeed REAL, windGust REAL)"
         );
       },
       version: 1,
@@ -98,9 +99,39 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // Save to local storage
   Future<void> saveWeatherData(Database db, Map<String, dynamic> data) async {
+    num? temp;
+    num? windS;
+    num? windG;
+    var pTemp = data['properties']['temperature']['value'];
+    var pWindS = data['properties']['windSpeed']['value'];
+    var pWindG = data['properties']['windGust']['value'];
+
+    if (pTemp is String) {
+      temp = double.parse(pTemp).convertFromTo(TEMPERATURE.celsius, TEMPERATURE.fahrenheit);
+    } else if (pTemp is num) {
+      temp = pTemp.toDouble().convertFromTo(TEMPERATURE.celsius, TEMPERATURE.fahrenheit);
+    } else {
+      temp = 0.0;
+    }
+    if (pWindS is String) {
+      windS = double.parse(pWindS).convertFromTo(SPEED.kilometersPerHour, SPEED.milesPerHour);
+    } else if (pWindS is num) {
+      windS = pWindS.toDouble().convertFromTo(SPEED.kilometersPerHour, SPEED.milesPerHour);
+    } else {
+      windS = 0.0;
+    }
+    if (pWindG is String) {
+      windG = double.parse(pWindG).convertFromTo(SPEED.kilometersPerHour, SPEED.milesPerHour);
+    } else if (pWindG is num) {
+      windG = pWindG.toDouble().convertFromTo(SPEED.kilometersPerHour, SPEED.milesPerHour);
+    } else {
+      windG = 0.0;
+    }
+
     await db.insert('weather', {
-      'temperature': data['properties']['temperature']['value'].toString(),
-      'windSpeed': data['properties']['windSpeed']['value'].toString(),
+      'temperature': temp,
+      'windSpeed': windS,
+      'windGust': windG
     });
   }
 
@@ -127,12 +158,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
       body: Center(
@@ -145,9 +171,12 @@ class _MyHomePageState extends State<MyHomePage> {
               : Column(
                   children: [
                     Text(
-                          'Temperature: ${weatherData!['properties']['temperature']['value']}°C'),
+                          'Temperature: ${weatherData!['properties']['temperature']['value']}°F'),
                     Text(
-                          'Wind Speed: ${weatherData!['properties']['windSpeed']['value']} km/h'),
+                          'Wind Speed: ${weatherData!['properties']['windSpeed']['value']} Mph'),
+                    Text(
+                          'Wind Gust: $weatherData![]'
+                    )
                     Text(
                           'Database size: $dbSize'),
                   ],
